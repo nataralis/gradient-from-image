@@ -22,7 +22,11 @@ fn rgb_to_image(colors_transform_rgb: &colors_transform::Rgb) -> image::Rgb<u8> 
     image::Rgb([red, green, blue])
 }
 
-fn create_pixel_array_hsl(img_width: u32, img_height: u32, img: &ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Vec<Hsl> {
+fn create_pixel_array_hsl(
+    img_width: u32,
+    img_height: u32,
+    img: &ImageBuffer<image::Rgb<u8>, Vec<u8>>,
+) -> Vec<Hsl> {
     let pixel_count = (img_width * img_height).try_into().unwrap();
 
     let mut pixel_array_hsl = Vec::with_capacity(pixel_count);
@@ -40,28 +44,32 @@ fn create_result_array_rgb(pixel_array_hsl: &Vec<Hsl>) -> Vec<image::Rgb<u8>> {
     let mut result_array_rgb = Vec::with_capacity(pixel_array_hsl.len());
     for &item in pixel_array_hsl.iter() {
         result_array_rgb.push(rgb_to_image(&item.to_rgb()));
-    };
+    }
 
     result_array_rgb
 }
 
-fn sort_pixels_by_lightness(img_width: u32, img_height: u32, img: &ImageBuffer<image::Rgb<u8>, Vec<u8>>) -> Vec<image::Rgb<u8>> {
+fn sort_pixels_by_lightness(
+    img_width: u32,
+    img_height: u32,
+    img: &ImageBuffer<image::Rgb<u8>, Vec<u8>>,
+) -> Vec<image::Rgb<u8>> {
     let mut pixel_array_hsl = create_pixel_array_hsl(img_width, img_height, &img);
 
-    pixel_array_hsl.sort_by(|a, b| {
-        a.get_lightness().partial_cmp(&b.get_lightness()).unwrap()
-    });
+    pixel_array_hsl.sort_by(|a, b| a.get_lightness().partial_cmp(&b.get_lightness()).unwrap());
 
     let result_array_rgb = create_result_array_rgb(&pixel_array_hsl);
 
     result_array_rgb
 }
 
-fn generate_raw_gradient(result_width: u32, result_height: u32, img: &DynamicImage) -> ImageBuffer<image::Rgb<u8>, Vec<u8>> {
+fn generate_raw_gradient(
+    result_width: u32,
+    result_height: u32,
+    img: &DynamicImage,
+) -> ImageBuffer<image::Rgb<u8>, Vec<u8>> {
     let (img_width, img_height) = img.dimensions();
-    let imgbuf = ImageBuffer::from_fn(img_width, img_height, |x, y| {
-        img.get_pixel(x, y).to_rgb()
-    });
+    let imgbuf = ImageBuffer::from_fn(img_width, img_height, |x, y| img.get_pixel(x, y).to_rgb());
 
     println!("imgbuf done!");
 
