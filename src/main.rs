@@ -1,4 +1,7 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use colors_transform::{Color, Hsl};
+use eframe::egui;
 use image::{open, DynamicImage, GenericImageView, ImageBuffer, Pixel};
 
 fn rgb_to_colors_transform(image_rgb: &image::Rgb<u8>) -> colors_transform::Rgb {
@@ -79,19 +82,117 @@ fn generate_raw_gradient(result_width: u32, result_height: u32, img: &DynamicIma
     result_imgbuf
 }
 
-fn main() {
-    let img = open("images/low_res.jpg").unwrap();
+fn main() -> Result<(), eframe::Error> {
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
+        ..Default::default()
+    };
 
-    let (img_width, img_height) = img.dimensions();
+    eframe::run_native(
+        "Gradient Generator",
+        options,
+        Box::new(|cc| {
+            egui_extras::install_image_loaders(&cc.egui_ctx);
 
-    let input = String::new();
+            Box::<GradientGenerator>::default()
+        }),
+    )
+}
 
-    let result_width = 5000;
-    let result_height = 5000;
+struct GradientGenerator {
+    img_path: Option<String>,
+    result_path: Option<String>,
+    img: DynamicImage,
+    imgbuf: ImageBuffer<image::Rgb<u8>, Vec<u8>>,
+    width: u32,
+    height: u32,
+}
 
-    let imgbuf = generate_raw_gradient(result_width, result_height, &img);
+impl Default for GradientGenerator {
+    fn default() -> Self {
+        Self {
+            img_path: None,
+            result_path: None,
+            img: DynamicImage::new(0, 0, image::ColorType::Rgb8),
+            imgbuf: ImageBuffer::new(0, 0),
+            width: 0,
+            height: 0,
+        }
+    }
+}
 
-    imgbuf.save("images/modified_low_res.png").unwrap();
+impl eframe::App for GradientGenerator {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("Gradient Generator");
 
-    println!("saving done!");
+            if ui.button("Choose image path...").clicked() {
+                if let Some(path) = rfd::FileDialog::new().pick_file() {
+                    self.img_path = Some(path.display().to_string());
+                }
+            }
+
+            if let Some(path) = &self.img_path {
+                ui.horizontal(|ui| {
+                    ui.label("Image path:");
+                    ui.monospace(path);
+                });
+            } else {
+                ui.horizontal(|ui| {
+                    ui.label("Image path:");
+                    ui.monospace("No path chosen yet");
+                });
+            }
+
+            if ui.button("Upload file").clicked() {
+                if let Some(path) = &self.img_path {
+                    self.img = open(&path).unwrap();
+                    let (img_width, img_height) = self.img.dimensions();
+                    self.width = img_width;
+                    self.height = img_height;
+                }
+            }
+
+            ui.horizontal(|ui| {
+                let width_label = ui.label("Width (px): ");
+                ui.add(egui::DragValue::new(&mut self.width).speed(1.0))
+                    .labelled_by(width_label.id);
+            });
+
+            ui.horizontal(|ui| {
+                let height_label = ui.label("Height (px): ");
+                ui.add(egui::DragValue::new(&mut self.height).speed(1.0))
+                    .labelled_by(height_label.id);
+            });
+
+            if ui.button("Generate gradient").clicked() {
+                self.imgbuf = generate_raw_gradient(self.width, self.height, &self.img);
+            }
+
+            if ui.button("Choose save path...").clicked() {
+                if let Some(path) = rfd::FileDialog::new().save_file() {
+                    self.result_path = Some(path.display().to_string());
+                }
+            }
+
+            if let Some(path) = &self.result_path {
+                ui.horizontal(|ui| {
+                    ui.label("Save path:");
+                    ui.monospace(path);
+                });
+            } else {
+                ui.horizontal(|ui| {
+                    ui.label("Save path:");
+                    ui.monospace("No path chosen yet");
+                });
+            }
+
+            if ui.button("Save file").clicked() {
+                if let Some(path) = &self.result_path {
+                    self.imgbuf.save(path).unwrap();
+                    println!("saving done!");
+                }
+            }
+        });
+    }
 }

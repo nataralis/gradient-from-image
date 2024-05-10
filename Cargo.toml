@@ -7,4 +7,8 @@ edition = "2021"
 
 [dependencies]
 colors-transform = "0.2.11"
+eframe = "0.27.2"
+egui = "0.27.2"
+egui_extras = { version = "0.27.2", features = ["all_loaders"] }
 image = "0.25.1"
+rfd = "0.14.1"
