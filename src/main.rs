@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use colors_transform::{Color, Hsl};
+use colors_transform::Color;
 use eframe::egui;
 use image::{open, DynamicImage, GenericImageView, ImageBuffer, Pixel};
 
@@ -22,77 +22,43 @@ fn rgb_to_image(colors_transform_rgb: &colors_transform::Rgb) -> image::Rgb<u8> 
     image::Rgb([red, green, blue])
 }
 
-fn create_pixel_array_hsl(
-    img_width: u32,
-    img_height: u32,
-    img: &ImageBuffer<image::Rgb<u8>, Vec<u8>>,
-) -> Vec<Hsl> {
-    let pixel_count = (img_width * img_height).try_into().unwrap();
-
-    let mut pixel_array_hsl = Vec::with_capacity(pixel_count);
-    for y in 0..img_height {
-        for x in 0..img_width {
-            let img_pixel = img.get_pixel(x, y).to_rgb();
-            pixel_array_hsl.push(rgb_to_colors_transform(&img_pixel).to_hsl());
-        }
-    }
-
-    pixel_array_hsl
-}
-
-fn create_result_array_rgb(pixel_array_hsl: &Vec<Hsl>) -> Vec<image::Rgb<u8>> {
-    let mut result_array_rgb = Vec::with_capacity(pixel_array_hsl.len());
-    for &item in pixel_array_hsl.iter() {
-        result_array_rgb.push(rgb_to_image(&item.to_rgb()));
-    }
-
-    result_array_rgb
-}
-
-fn sort_pixels_by_lightness(
-    img_width: u32,
-    img_height: u32,
-    img: &ImageBuffer<image::Rgb<u8>, Vec<u8>>,
-) -> Vec<image::Rgb<u8>> {
-    let mut pixel_array_hsl = create_pixel_array_hsl(img_width, img_height, &img);
-
-    pixel_array_hsl.sort_by(|a, b| a.get_lightness().partial_cmp(&b.get_lightness()).unwrap());
-
-    let result_array_rgb = create_result_array_rgb(&pixel_array_hsl);
-
-    result_array_rgb
-}
-
-fn generate_raw_gradient(
+fn generate_gradient(
     result_width: u32,
     result_height: u32,
     img: &DynamicImage,
 ) -> ImageBuffer<image::Rgb<u8>, Vec<u8>> {
     let (img_width, img_height) = img.dimensions();
-    let imgbuf = ImageBuffer::from_fn(img_width, img_height, |x, y| img.get_pixel(x, y).to_rgb());
+    let pixel_count = (img_width * img_height).try_into().unwrap();
 
-    println!("imgbuf done!");
-
-    let sorted_array = sort_pixels_by_lightness(img_width, img_height, &imgbuf);
-
-    println!("sorted!");
-
-    let result_imgbuf = ImageBuffer::from_fn(result_width, result_height, |x, y| {
-        if (x % result_width) == 0 {
-            println!("{} lines completed!", y + 1);
+    // Create pixel vector (in HSL)
+    let mut pixel_vector_hsl = Vec::with_capacity(pixel_count);
+    for y in 0..img_height {
+        for x in 0..img_width {
+            let img_pixel = img.get_pixel(x, y).to_rgb();
+            pixel_vector_hsl.push(rgb_to_colors_transform(&img_pixel).to_hsl());
         }
+    }
 
-        sorted_array[(img_width * img_height / result_height * y) as usize]
+    // Sort vector
+    pixel_vector_hsl.sort_by(|a, b| a.get_lightness().partial_cmp(&b.get_lightness()).unwrap());
+
+    // Create RGB vector
+    let mut pixel_vector_rgb = Vec::with_capacity(pixel_vector_hsl.len());
+    for &item in pixel_vector_hsl.iter() {
+        pixel_vector_rgb.push(rgb_to_image(&item.to_rgb()));
+    }
+
+    // Arrange vector into image buffer
+    let imgbuf = ImageBuffer::from_fn(result_width, result_height, |_x, y| {
+        pixel_vector_rgb[(img_width * img_height / result_height * y) as usize]
     });
 
-    println!("gradient done!");
-
-    result_imgbuf
+    imgbuf
 }
 
 fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 280.0]),
         ..Default::default()
     };
 
@@ -134,6 +100,8 @@ impl eframe::App for GradientGenerator {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Gradient Generator");
 
+            ui.separator();
+
             if ui.button("Choose image path...").clicked() {
                 if let Some(path) = rfd::FileDialog::new().pick_file() {
                     self.img_path = Some(path.display().to_string());
@@ -161,6 +129,8 @@ impl eframe::App for GradientGenerator {
                 }
             }
 
+            ui.separator();
+
             ui.horizontal(|ui| {
                 let width_label = ui.label("Width (px): ");
                 ui.add(egui::DragValue::new(&mut self.width).speed(1.0))
@@ -174,8 +144,10 @@ impl eframe::App for GradientGenerator {
             });
 
             if ui.button("Generate gradient").clicked() {
-                self.imgbuf = generate_raw_gradient(self.width, self.height, &self.img);
+                self.imgbuf = generate_gradient(self.width, self.height, &self.img);
             }
+
+            ui.separator();
 
             if ui.button("Choose save path...").clicked() {
                 if let Some(path) = rfd::FileDialog::new().save_file() {
